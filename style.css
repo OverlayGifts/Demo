@@ -1,9 +1,8 @@
-/* style.css - Jewels-Ai Atelier: v7.0 (Fast Load Edition) */
+/* style.css - Jewels-Ai Atelier: v10.0 (Fast Load Edition) */
 
-/* Import Google Fonts */
+/* 1. FONTS & RESET */
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Montserrat:wght@400;600&display=swap');
 
-/* --- 1. GLOBAL VARIABLES & RESET --- */
 :root {
   --accent: #d4af37;           /* Premium Gold */
   --accent-glow: rgba(212, 175, 55, 0.4);
@@ -21,45 +20,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* The Pulse Ring Animation (for AI Avatar) */
-.avatar-ring {
-    position: absolute; inset: -5px; border-radius: 50%;
-    border: 2px solid var(--accent); opacity: 0;
-}
-
-.talking .avatar-ring {
-    animation: talkPulse 1.5s infinite;
-}
-
-@keyframes talkPulse {
-    0% { transform: scale(1); opacity: 0.8; }
-    100% { transform: scale(1.5); opacity: 0; }
-}
-
-#ai-bubble {
-    background: rgba(255, 255, 255, 0.95);
-    color: #000; padding: 10px 15px; border-radius: 15px 15px 0 15px;
-    margin-bottom: 10px; font-size: 13px; font-weight: 600;
-    box-shadow: 0 5px 10px rgba(0,0,0,0.3);
-    opacity: 0; transform: translateY(10px);
-    transition: all 0.3s ease; max-width: 180px; text-align: right;
-}
-
-.bubble-visible { opacity: 1 !important; transform: translateY(0) !important; }
-
-/* --- 3. CAMERA & FLASH LAYERS --- */
-#flash-overlay {
-    position: fixed; inset: 0; background: white; z-index: 9999;
-    opacity: 0; pointer-events: none; display: none;
-}
-
-.flash-active {
-    display: block !important;
-    animation: flash-animation 0.25s ease-out forwards;
-}
-
-@keyframes flash-animation { 0% { opacity: 0.8; } 100% { opacity: 0; } }
-
+/* 2. VIDEO LAYER & CANVAS */
 #video-container { 
     position: fixed; 
     inset: 0; 
@@ -87,7 +48,7 @@ body {
 
 #webcam.no-mirror { transform: none !important; }
 
-/* --- UPDATED LOADING STATUS (Professional Pill Style) --- */
+/* 3. LOADING STATUS (Optimized) */
 #loading-status {
     position: fixed; 
     top: 50%; left: 50%; 
@@ -108,8 +69,7 @@ body {
     backdrop-filter: blur(5px);
 }
 
-#loading-status::before {
-    content: "";
+.spinner-mini {
     width: 18px; height: 18px;
     border: 2px solid rgba(255,255,255,0.1);
     border-top: 2px solid var(--accent);
@@ -118,7 +78,22 @@ body {
     display: inline-block;
 }
 
-/* --- 4. TOP CONTROLS (Brand & Actions) --- */
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* 4. FLASH EFFECT */
+#flash-overlay {
+    position: fixed; inset: 0; background: white; z-index: 9999;
+    opacity: 0; pointer-events: none; display: none;
+}
+
+.flash-active {
+    display: block !important;
+    animation: flash-animation 0.25s ease-out forwards;
+}
+
+@keyframes flash-animation { 0% { opacity: 0.8; } 100% { opacity: 0; } }
+
+/* 5. TOP CONTROLS (Brand & Buttons) */
 #controls-hero {
   position: fixed; top: 0; left: 0; right: 0; padding: 20px;
   background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
@@ -138,7 +113,7 @@ body {
 #snapshot-btn:active, #voice-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
 .voice-off { color: #ff5555 !important; border-color: #ff5555 !important; background: rgba(255, 85, 85, 0.1) !important; }
 
-/* --- 5. BOTTOM CONTROLS (Carousel & Pills) --- */
+/* 6. BOTTOM CONTROLS (Pills & Carousel) */
 .controls-panel {
   position: fixed; bottom: 20px; width: 100%; 
   display: flex; flex-direction: column; align-items: center; z-index: 15;
@@ -171,7 +146,45 @@ body {
 
 .thumb-btn:active { transform: scale(0.95); border-color: var(--accent); }
 
-/* --- 6. MODALS --- */
+/* 7. AI CONCIERGE (Avatar & Bubble) */
+#ai-concierge-container {
+    position: fixed; bottom: 180px; right: 20px; z-index: 20;
+    display: flex; flex-direction: column; align-items: flex-end;
+}
+
+#ai-avatar {
+    width: 60px; height: 60px; background: rgba(0,0,0,0.8);
+    border-radius: 50%; display: flex; justify-content: center; align-items: center;
+    cursor: pointer; position: relative; border: 2px solid var(--accent);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.avatar-face { font-size: 30px; }
+
+.avatar-ring {
+    position: absolute; inset: -5px; border-radius: 50%;
+    border: 2px solid var(--accent); opacity: 0;
+}
+
+.talking .avatar-ring { animation: talkPulse 1.5s infinite; }
+
+@keyframes talkPulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+#ai-bubble {
+    background: rgba(255, 255, 255, 0.95);
+    color: #000; padding: 10px 15px; border-radius: 15px 15px 0 15px;
+    margin-bottom: 10px; font-size: 13px; font-weight: 600;
+    box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+    opacity: 0; transform: translateY(10px);
+    transition: all 0.3s ease; max-width: 180px; text-align: right;
+}
+
+.bubble-visible { opacity: 1 !important; transform: translateY(0) !important; }
+
+/* 8. MODALS (Preview, Gallery, Lightbox) */
 #preview-modal, #gallery-modal, #lightbox-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000;
     display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(8px);
@@ -188,6 +201,7 @@ body {
 .lightbox-nav:hover { color: var(--accent); transform: translateY(-50%) scale(1.2); }
 .prev { left: 10px; } .next { right: 10px; }
 
+/* Gallery Content */
 .gallery-content {
     background: rgba(18, 18, 18, 0.95); width: 90%; max-width: 900px; height: 80vh; padding: 30px;
     border-radius: 20px; border: 1px solid rgba(212, 175, 55, 0.3); box-shadow: 0 20px 60px rgba(0,0,0,0.8);
@@ -213,6 +227,7 @@ body {
 .gallery-card:hover { transform: translateY(-5px); border-color: var(--accent); }
 .gallery-img { width: 100%; height: 100%; object-fit: cover; }
 
+/* Gallery Overlay (Text Wrapping Fix) */
 .gallery-overlay {
     position: absolute; bottom: 0; left: 0; right: 0; 
     background: linear-gradient(to top, rgba(0,0,0,0.95) 10%, rgba(0,0,0,0.6) 50%, transparent);
@@ -227,23 +242,11 @@ body {
 }
 .overlay-icon { align-self: flex-end; font-size: 16px; color: var(--accent); }
 
+/* Close Buttons */
 .close-preview, .close-gallery, .close-lightbox { position: absolute; top: 15px; right: 20px; font-size: 30px; color: #888; cursor: pointer; z-index: 2001; }
 .close-preview:hover, .close-gallery:hover, .close-lightbox:hover { color: var(--accent); }
 
-/* --- 7. PROCESSING SPINNER & NOTIFICATIONS --- */
-#process-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 4000;
-    display: none; align-items: center; justify-content: center;
-}
-
-.spinner {
-    width: 50px; height: 50px; margin: 0 auto 15px auto;
-    border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--accent);
-    border-radius: 50%; animation: spin 1s linear infinite;
-}
-
-@keyframes spin { 100% { transform: rotate(360deg); } }
-
+/* 9. NOTIFICATIONS & MODALS */
 #toast-notification {
     visibility: hidden; min-width: 250px; background-color: #333; color: #d4af37;
     text-align: center; border-radius: 4px; padding: 16px; position: fixed;
