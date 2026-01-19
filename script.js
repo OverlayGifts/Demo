@@ -1,4 +1,4 @@
-/* script.js - Jewels-Ai Atelier: v9.0 (Boosted Load Speed) */
+/* script.js - Jewels-Ai Atelier: v10.0 (Instant Load & No Daily Drops) */
 
 /* --- CONFIGURATION --- */
 const API_KEY = "AIzaSyAXG3iG2oQjUA_BpnO8dK8y-MHJ7HLrhyE"; 
@@ -14,7 +14,6 @@ const DRIVE_FOLDERS = {
 const JEWELRY_ASSETS = {}; 
 const CATALOG_PROMISES = {}; 
 const IMAGE_CACHE = {}; 
-let dailyItem = null; 
 
 const watermarkImg = new Image(); watermarkImg.src = 'logo_watermark.png'; 
 
@@ -63,32 +62,28 @@ let handSmoother = {
 /* --- HELPER: LERP --- */
 function lerp(start, end, amt) { return (1 - amt) * start + amt * end; }
 
-/* --- 1. OPTIMIZED INITIALIZATION (NO RELOAD) --- */
+/* --- 1. OPTIMIZED INITIALIZATION (The Boost) --- */
 window.onload = async () => {
-    // STARTUP BOOST: Removed reload loop.
+    // BOOST: Removed the double-reload logic. App now starts instantly.
+    
     if(loadingStatus) {
         loadingStatus.style.display = 'flex';
-        loadingStatus.innerText = "Starting Camera...";
+        loadingStatus.innerHTML = '<div class="spinner-mini"></div> Starting Camera...';
     }
 
-    // Start background fetch immediately
+    // 1. Start fetching data in background
     initBackgroundFetch();
     
-    // Setup Video
-    videoElement.setAttribute('autoplay', '');
-    videoElement.setAttribute('muted', '');
-    videoElement.setAttribute('playsinline', '');
-
-    // Initialize Camera
+    // 2. Start Camera immediately
+    // We don't wait for data to finish before starting camera to save time
     await startCameraFast('user');
     
-    // Update status to show we are fetching
-    if(loadingStatus) loadingStatus.innerText = "Fetching Collection...";
+    if(loadingStatus) loadingStatus.innerHTML = '<div class="spinner-mini"></div> Fetching Collection...';
 
-    // Initialize Face Mesh logic immediately so it's ready
+    // 3. Initialize Face Mesh logic immediately
     detectLoop();
 
-    // Start loading earrings (this will hide the loader when first image is ready)
+    // 4. Load earrings. Loader will hide AUTOMATICALLY when the first image is ready.
     await selectJewelryType('earrings');
 };
 
@@ -110,7 +105,6 @@ async function startCameraFast(mode = 'user') {
     try {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = stream;
-        // Wait for metadata to load
         return new Promise((resolve) => {
             videoElement.onloadedmetadata = () => {
                 videoElement.play().then(() => {
@@ -120,7 +114,7 @@ async function startCameraFast(mode = 'user') {
         });
     } catch (err) { 
         console.error("Camera denied:", err); 
-        if(loadingStatus) loadingStatus.innerText = "Camera Denied. Check Settings.";
+        if(loadingStatus) loadingStatus.innerText = "Camera Access Denied";
     }
 }
 
@@ -135,6 +129,7 @@ async function detectLoop() {
 
 /* --- 3. DATA FETCHING --- */
 function initBackgroundFetch() { Object.keys(DRIVE_FOLDERS).forEach(key => { fetchCategoryData(key); }); }
+
 function fetchCategoryData(category) {
     if (CATALOG_PROMISES[category]) return CATALOG_PROMISES[category];
     const fetchPromise = new Promise(async (resolve, reject) => {
@@ -147,11 +142,11 @@ function fetchCategoryData(category) {
             if (data.error) throw new Error(data.error.message);
             JEWELRY_ASSETS[category] = data.files.map(file => {
                 const baseLink = file.thumbnailLink;
+                // High quality thumbnail for preview, Full High Res for download
                 let thumbSrc = baseLink ? baseLink.replace(/=s\d+$/, "=s400") : `https://drive.google.com/thumbnail?id=${file.id}`;
                 let fullSrc = baseLink ? baseLink.replace(/=s\d+$/, "=s3000") : `https://drive.google.com/uc?export=view&id=${file.id}`;
                 return { id: file.id, name: file.name, thumbSrc: thumbSrc, fullSrc: fullSrc };
             });
-            if (category === 'earrings') setTimeout(checkDailyDrop, 2000);
             resolve(JEWELRY_ASSETS[category]);
         } catch (err) { resolve([]); }
     });
@@ -159,7 +154,7 @@ function fetchCategoryData(category) {
     return fetchPromise;
 }
 
-/* --- 4. ASSET LOADING (OPTIMIZED) --- */
+/* --- 4. ASSET LOADING (Optimized) --- */
 function loadAsset(src, id) {
     return new Promise((resolve) => {
         if (!src) { resolve(null); return; }
@@ -177,7 +172,7 @@ function setActiveARImage(img) {
     else if (currentType === 'bangles') bangleImg = img;
 }
 
-/* --- 5. SELECTION LOGIC (UPDATED WITH LOADER) --- */
+/* --- 5. SELECTION LOGIC (With Smart Loading) --- */
 async function selectJewelryType(type) {
   if (currentType === type && document.getElementById('jewelry-options').children.length > 0) return;
   
@@ -192,11 +187,11 @@ async function selectJewelryType(type) {
   
   let assets = JEWELRY_ASSETS[type];
   
-  // Show Loader if data not ready
+  // Show Loader if data isn't ready
   if (!assets) {
       if(loadingStatus) {
           loadingStatus.style.display = 'flex';
-          loadingStatus.innerText = "Downloading " + type + "...";
+          loadingStatus.innerHTML = `<div class="spinner-mini"></div> Downloading ${type}...`;
       }
       assets = await fetchCategoryData(type);
   }
@@ -219,25 +214,28 @@ async function selectJewelryType(type) {
   });
   
   container.appendChild(fragment);
-  // Apply first asset immediately
+  
+  // Apply the first item immediately
   await applyAssetInstantly(assets[0], 0);
 }
 
 async function applyAssetInstantly(asset, index) {
     currentAssetIndex = index; currentAssetName = asset.name; highlightButtonByIndex(index);
     
-    // Load Thumbnail First (Fast Feedback)
+    // Load Thumbnail First (Fastest way to show something)
     const thumbImg = new Image(); 
     thumbImg.crossOrigin = 'anonymous';
     
     thumbImg.onload = () => {
         setActiveARImage(thumbImg);
-        // HIDE LOADER HERE: As soon as we have a visible image
-        if(loadingStatus) loadingStatus.style.display = 'none';
+        // CRITICAL FIX: Hide the loader instantly once the image is ready
+        // This ensures the user never sees a "waiting" screen if the item is ready
+        if(loadingStatus) loadingStatus.style.display = 'none'; 
     };
-    thumbImg.src = asset.thumbSrc;
+    
+    thumbImg.src = asset.thumbSrc; 
 
-    // Load High-Res in Background
+    // Load High-Res in background (doesn't block the UI)
     const highResImg = await loadAsset(asset.fullSrc, asset.id);
     if (currentAssetName === asset.name && highResImg) setActiveARImage(highResImg);
 }
@@ -352,7 +350,7 @@ hands.onResults((results) => {
 });
 
 /* --- 7. UTILS & VOICE CONTROL --- */
-window.selectJewelryType = selectJewelryType; window.toggleTryAll = toggleTryAll; window.tryDailyItem = tryDailyItem; window.closeDailyDrop = closeDailyDrop;
+window.selectJewelryType = selectJewelryType; window.toggleTryAll = toggleTryAll; 
 window.takeSnapshot = takeSnapshot; window.downloadAllAsZip = downloadAllAsZip; window.closePreview = closePreview;
 window.downloadSingleSnapshot = downloadSingleSnapshot; window.shareSingleSnapshot = shareSingleSnapshot;
 window.changeLightboxImage = changeLightboxImage; window.toggleVoiceControl = toggleVoiceControl;
@@ -483,23 +481,6 @@ function captureToGallery() {
     autoSnapshots.push({ url: dataUrl, name: `${safeName}_${Date.now()}.png` }); 
     return { url: dataUrl, name: `${safeName}_${Date.now()}.png` }; 
 }
-
-function checkDailyDrop() {
-    const today = new Date().toDateString();
-    const lastSeen = localStorage.getItem('jewels_daily_date');
-    if (lastSeen !== today && JEWELRY_ASSETS['earrings'] && JEWELRY_ASSETS['earrings'].length > 0) {
-        const list = JEWELRY_ASSETS['earrings'];
-        const randomIdx = Math.floor(Math.random() * list.length);
-        dailyItem = { item: list[randomIdx], index: randomIdx, type: 'earrings' };
-        document.getElementById('daily-img').src = dailyItem.item.thumbSrc;
-        let cleanName = dailyItem.item.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
-        document.getElementById('daily-name').innerText = cleanName;
-        document.getElementById('daily-drop-modal').style.display = 'flex';
-        localStorage.setItem('jewels_daily_date', today);
-    }
-}
-function closeDailyDrop() { document.getElementById('daily-drop-modal').style.display = 'none'; }
-function tryDailyItem() { closeDailyDrop(); if (dailyItem) { selectJewelryType(dailyItem.type).then(() => { applyAssetInstantly(dailyItem.item, dailyItem.index); }); } }
 
 function showGallery() { 
     const grid = document.getElementById('gallery-grid'); grid.innerHTML = ''; 
