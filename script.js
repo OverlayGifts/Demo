@@ -344,4 +344,181 @@ hands.onResults((results) => {
       }
       if (bangleImg && bangleImg.complete) {
           const bHeight = (bangleImg.height / bangleImg.width) * handSmoother.bangle.size;
-          canvasCtx.save(); canvasCtx.translate(handSmoother.bangle.x,
+          canvasCtx.save(); canvasCtx.translate(handSmoother.bangle.x, handSmoother.bangle.y); canvasCtx.rotate(handSmoother.bangle.angle); canvasCtx.drawImage(bangleImg, -handSmoother.bangle.size/2, -bHeight/2, handSmoother.bangle.size, bHeight); canvasCtx.restore();
+      }
+      canvasCtx.shadowColor = "transparent";
+  }
+  canvasCtx.restore();
+});
+
+/* --- 7. UTILS & VOICE CONTROL --- */
+window.selectJewelryType = selectJewelryType; window.toggleTryAll = toggleTryAll; window.tryDailyItem = tryDailyItem; window.closeDailyDrop = closeDailyDrop;
+window.takeSnapshot = takeSnapshot; window.downloadAllAsZip = downloadAllAsZip; window.closePreview = closePreview;
+window.downloadSingleSnapshot = downloadSingleSnapshot; window.shareSingleSnapshot = shareSingleSnapshot;
+window.changeLightboxImage = changeLightboxImage; window.toggleVoiceControl = toggleVoiceControl;
+
+function initVoiceControl() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) { if(voiceBtn) voiceBtn.style.display = 'none'; return; }
+    recognition = new SpeechRecognition(); recognition.continuous = true; recognition.interimResults = false; recognition.lang = 'en-US';
+    
+    recognition.onstart = () => { 
+        isRecognizing = true; 
+        if(voiceBtn) { 
+            voiceBtn.innerHTML = '🎙️'; 
+            voiceBtn.classList.remove('voice-off');
+            voiceBtn.style.backgroundColor = "rgba(0, 255, 0, 0.2)"; 
+            voiceBtn.style.borderColor = "#00ff00"; 
+        } 
+    };
+    
+    recognition.onresult = (event) => { if (event.results[event.results.length - 1].isFinal) processVoiceCommand(event.results[event.results.length - 1][0].transcript.trim().toLowerCase()); };
+    
+    recognition.onend = () => { 
+        isRecognizing = false; 
+        if (voiceEnabled) { 
+            setTimeout(() => { try { recognition.start(); } catch(e) {} }, 500); 
+        } else if(voiceBtn) { 
+            voiceBtn.innerHTML = '🔇'; 
+            voiceBtn.classList.add('voice-off'); 
+            voiceBtn.style.backgroundColor = ""; 
+            voiceBtn.style.borderColor = ""; 
+        } 
+    };
+    try { recognition.start(); } catch(e) {}
+}
+
+function toggleVoiceControl() { 
+    if (!recognition) { 
+        voiceEnabled = true; 
+        initVoiceControl(); 
+        return; 
+    } 
+    voiceEnabled = !voiceEnabled; 
+    if (!voiceEnabled) { 
+        recognition.stop(); 
+        if(voiceBtn) { voiceBtn.innerHTML = '🔇'; voiceBtn.classList.add('voice-off'); } 
+    } else { 
+        try { recognition.start(); } catch(e) {} 
+        if(voiceBtn) { voiceBtn.innerHTML = '🎙️'; voiceBtn.classList.remove('voice-off'); } 
+    } 
+}
+
+function processVoiceCommand(cmd) { cmd = cmd.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,""); if (cmd.includes('next') || cmd.includes('change')) { navigateJewelry(1); triggerVisualFeedback("Next"); } else if (cmd.includes('back') || cmd.includes('previous')) { navigateJewelry(-1); triggerVisualFeedback("Previous"); } else if (cmd.includes('photo') || cmd.includes('capture')) takeSnapshot(); else if (cmd.includes('earring')) selectJewelryType('earrings'); else if (cmd.includes('chain') || cmd.includes('neck')) selectJewelryType('chains'); else if (cmd.includes('ring')) selectJewelryType('rings'); else if (cmd.includes('bangle')) selectJewelryType('bangles'); }
+function triggerVisualFeedback(text) { const feedback = document.createElement('div'); feedback.innerText = text; feedback.style.cssText = 'position:fixed; top:20%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.7); color:#fff; padding:10px 20px; border-radius:20px; z-index:1000; pointer-events:none;'; document.body.appendChild(feedback); setTimeout(() => { feedback.remove(); }, 1000); }
+function triggerFlash() { if(!flashOverlay) return; flashOverlay.classList.remove('flash-active'); void flashOverlay.offsetWidth; flashOverlay.classList.add('flash-active'); setTimeout(() => { flashOverlay.classList.remove('flash-active'); }, 300); }
+function toggleTryAll() { if (!currentType) { alert("Select category!"); return; } if (autoTryRunning) stopAutoTry(); else startAutoTry(); }
+function startAutoTry() { autoTryRunning = true; autoSnapshots = []; autoTryIndex = 0; document.getElementById('tryall-btn').textContent = "STOP"; runAutoStep(); }
+function stopAutoTry() { autoTryRunning = false; clearTimeout(autoTryTimeout); document.getElementById('tryall-btn').textContent = "Try All"; if (autoSnapshots.length > 0) showGallery(); }
+async function runAutoStep() { if (!autoTryRunning) return; const assets = JEWELRY_ASSETS[currentType]; if (!assets || autoTryIndex >= assets.length) { stopAutoTry(); return; } const asset = assets[autoTryIndex]; const highResImg = await loadAsset(asset.fullSrc, asset.id); setActiveARImage(highResImg); currentAssetName = asset.name; autoTryTimeout = setTimeout(() => { triggerFlash(); captureToGallery(); autoTryIndex++; runAutoStep(); }, 1500); }
+
+/* --- HELPER: WRAP TEXT ON CANVAS --- */
+function getWrappedLines(ctx, text, maxWidth) {
+    var words = text.split(" ");
+    var lines = [];
+    var currentLine = words[0];
+    for (var i = 1; i < words.length; i++) {
+        var word = words[i];
+        var width = ctx.measureText(currentLine + " " + word).width;
+        if (width < maxWidth) { currentLine += " " + word; } 
+        else { lines.push(currentLine); currentLine = word; }
+    }
+    lines.push(currentLine);
+    return lines;
+}
+
+function captureToGallery() { 
+    const tempCanvas = document.createElement('canvas'); 
+    tempCanvas.width = videoElement.videoWidth; 
+    tempCanvas.height = videoElement.videoHeight; 
+    const tempCtx = tempCanvas.getContext('2d'); 
+    
+    if (currentCameraMode === 'environment') { tempCtx.translate(0, 0); tempCtx.scale(1, 1); } 
+    else { tempCtx.translate(tempCanvas.width, 0); tempCtx.scale(-1, 1); } 
+    tempCtx.drawImage(videoElement, 0, 0); 
+    tempCtx.setTransform(1, 0, 0, 1, 0, 0); 
+    try { tempCtx.drawImage(canvasElement, 0, 0); } catch(e) {} 
+
+    let cleanName = currentAssetName.replace(/\.(png|jpg|jpeg|webp)$/i, "").replace(/_/g, " "); 
+    cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1); 
+    
+    const padding = tempCanvas.width * 0.04; 
+    const titleSize = tempCanvas.width * 0.045; 
+    const descSize = tempCanvas.width * 0.035; 
+    const lineHeight = descSize * 1.3;
+
+    tempCtx.font = `${descSize}px Montserrat, sans-serif`;
+    const maxWidth = tempCanvas.width - (padding * 2);
+    const filenameLines = getWrappedLines(tempCtx, cleanName, maxWidth);
+    
+    const titleHeight = titleSize * 1.5; 
+    const textBlockHeight = filenameLines.length * lineHeight;
+    const contentHeight = titleHeight + textBlockHeight + padding;
+
+    const gradient = tempCtx.createLinearGradient(0, tempCanvas.height - contentHeight - padding, 0, tempCanvas.height); 
+    gradient.addColorStop(0, "rgba(0,0,0,0)"); gradient.addColorStop(0.2, "rgba(0,0,0,0.8)"); gradient.addColorStop(1, "rgba(0,0,0,0.95)"); 
+    tempCtx.fillStyle = gradient; 
+    tempCtx.fillRect(0, tempCanvas.height - contentHeight - padding, tempCanvas.width, contentHeight + padding); 
+    
+    tempCtx.font = `bold ${titleSize}px Playfair Display, serif`; 
+    tempCtx.fillStyle = "#d4af37"; 
+    tempCtx.textAlign = "left"; 
+    tempCtx.textBaseline = "top"; 
+    tempCtx.fillText("Product Description", padding, tempCanvas.height - contentHeight); 
+    
+    tempCtx.font = `${descSize}px Montserrat, sans-serif`; 
+    tempCtx.fillStyle = "#ffffff"; 
+    filenameLines.forEach((line, index) => {
+        tempCtx.fillText(line, padding, tempCanvas.height - contentHeight + titleHeight + (index * lineHeight));
+    });
+
+    if (watermarkImg.complete) { 
+        const wWidth = tempCanvas.width * 0.25; 
+        const wHeight = (watermarkImg.height / watermarkImg.width) * wWidth; 
+        tempCtx.drawImage(watermarkImg, tempCanvas.width - wWidth - padding, padding, wWidth, wHeight); 
+    } 
+    
+    const dataUrl = tempCanvas.toDataURL('image/png'); 
+    const safeName = "Jewels_Look"; 
+    autoSnapshots.push({ url: dataUrl, name: `${safeName}_${Date.now()}.png` }); 
+    return { url: dataUrl, name: `${safeName}_${Date.now()}.png` }; 
+}
+
+function checkDailyDrop() {
+    const today = new Date().toDateString();
+    const lastSeen = localStorage.getItem('jewels_daily_date');
+    if (lastSeen !== today && JEWELRY_ASSETS['earrings'] && JEWELRY_ASSETS['earrings'].length > 0) {
+        const list = JEWELRY_ASSETS['earrings'];
+        const randomIdx = Math.floor(Math.random() * list.length);
+        dailyItem = { item: list[randomIdx], index: randomIdx, type: 'earrings' };
+        document.getElementById('daily-img').src = dailyItem.item.thumbSrc;
+        let cleanName = dailyItem.item.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
+        document.getElementById('daily-name').innerText = cleanName;
+        document.getElementById('daily-drop-modal').style.display = 'flex';
+        localStorage.setItem('jewels_daily_date', today);
+    }
+}
+function closeDailyDrop() { document.getElementById('daily-drop-modal').style.display = 'none'; }
+function tryDailyItem() { closeDailyDrop(); if (dailyItem) { selectJewelryType(dailyItem.type).then(() => { applyAssetInstantly(dailyItem.item, dailyItem.index); }); } }
+
+function showGallery() { 
+    const grid = document.getElementById('gallery-grid'); grid.innerHTML = ''; 
+    autoSnapshots.forEach((item, index) => { 
+        const card = document.createElement('div'); card.className = "gallery-card"; 
+        const img = document.createElement('img'); img.src = item.url; img.className = "gallery-img"; 
+        const overlay = document.createElement('div'); overlay.className = "gallery-overlay"; 
+        let cleanName = item.name.replace("Jewels-Ai_", "").replace(/\.(png|jpg|jpeg|webp)$/i, "").replace(/_/g, " "); 
+        overlay.innerHTML = `<span class="overlay-text">${cleanName}</span><div class="overlay-icon">👁️</div>`; 
+        card.onclick = () => { currentLightboxIndex = index; document.getElementById('lightbox-image').src = item.url; document.getElementById('lightbox-overlay').style.display = 'flex'; }; 
+        card.appendChild(img); card.appendChild(overlay); grid.appendChild(card); 
+    }); 
+    document.getElementById('gallery-modal').style.display = 'flex'; 
+}
+function takeSnapshot() { triggerFlash(); const shotData = captureToGallery(); currentPreviewData = shotData; document.getElementById('preview-image').src = shotData.url; document.getElementById('preview-modal').style.display = 'flex'; }
+function downloadSingleSnapshot() { if(!currentPreviewData.url) return; saveAs(currentPreviewData.url, currentPreviewData.name); }
+function downloadAllAsZip() { if (autoSnapshots.length === 0) return; const zip = new JSZip(); const folder = zip.folder("Jewels-Ai_Collection"); autoSnapshots.forEach(item => folder.file(item.name, item.url.replace(/^data:image\/(png|jpg);base64,/, ""), {base64:true})); zip.generateAsync({type:"blob"}).then(content => saveAs(content, "Jewels-Ai_Collection.zip")); }
+function shareSingleSnapshot() { if(!currentPreviewData.url) return; fetch(currentPreviewData.url).then(res => res.blob()).then(blob => { const file = new File([blob], "look.png", { type: "image/png" }); if (navigator.share) navigator.share({ files: [file] }); }); }
+function changeLightboxImage(dir) { if (autoSnapshots.length === 0) return; currentLightboxIndex = (currentLightboxIndex + dir + autoSnapshots.length) % autoSnapshots.length; document.getElementById('lightbox-image').src = autoSnapshots[currentLightboxIndex].url; }
+function closePreview() { document.getElementById('preview-modal').style.display = 'none'; }
+function closeGallery() { document.getElementById('gallery-modal').style.display = 'none'; }
+function closeLightbox() { document.getElementById('lightbox-overlay').style.display = 'none'; }
