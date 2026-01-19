@@ -1,0 +1,285 @@
+/* style.css - Jewels-Ai Atelier: v6.0 (Final Enterprise Version) */
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Montserrat:wght@400;600&display=swap');
+
+/* --- 1. GLOBAL VARIABLES & RESET --- */
+:root {
+  --accent: #d4af37;           /* Premium Gold */
+  --accent-glow: rgba(212, 175, 55, 0.4);
+  --bg: #000;
+  --text-main: #fff;
+}
+
+body { 
+  margin: 0; 
+  background: var(--bg); 
+  font-family: 'Montserrat', sans-serif; 
+  overflow: hidden; 
+  color: var(--text-main); 
+  user-select: none; 
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The Pulse Ring Animation (for AI Avatar) */
+.avatar-ring {
+    position: absolute; inset: -5px; border-radius: 50%;
+    border: 2px solid var(--accent); opacity: 0;
+}
+
+.talking .avatar-ring {
+    animation: talkPulse 1.5s infinite;
+}
+
+@keyframes talkPulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+#ai-bubble {
+    background: rgba(255, 255, 255, 0.95);
+    color: #000; padding: 10px 15px; border-radius: 15px 15px 0 15px;
+    margin-bottom: 10px; font-size: 13px; font-weight: 600;
+    box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+    opacity: 0; transform: translateY(10px);
+    transition: all 0.3s ease; max-width: 180px; text-align: right;
+}
+
+.bubble-visible { opacity: 1 !important; transform: translateY(0) !important; }
+
+/* --- 3. CAMERA & FLASH LAYERS --- */
+#flash-overlay {
+    position: fixed; inset: 0; background: white; z-index: 9999;
+    opacity: 0; pointer-events: none; display: none;
+}
+
+.flash-active {
+    display: block !important;
+    animation: flash-animation 0.25s ease-out forwards;
+}
+
+@keyframes flash-animation { 0% { opacity: 0.8; } 100% { opacity: 0; } }
+
+/* FIX: Black Screen Issue - Ensure container is black but video is visible */
+#video-container { 
+    position: fixed; 
+    inset: 0; 
+    z-index: 0; 
+    background: #000; /* Fallback color */
+}
+
+#webcam { 
+    position: absolute; 
+    width: 100%; 
+    height: 100%; 
+    object-fit: cover; 
+    transform: scaleX(-1); 
+    opacity: 1; /* Force visibility */
+}
+
+#overlay { 
+    position: absolute; 
+    width: 100%; 
+    height: 100%; 
+    object-fit: cover; 
+    z-index: 1; 
+    pointer-events: none; 
+}
+
+#webcam.no-mirror { transform: none !important; }
+
+#loading-status {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.85); color: var(--accent); padding: 20px 40px;
+    border-radius: 12px; border: 1px solid var(--accent);
+    font-family: 'Playfair Display'; font-size: 18px; z-index: 500; backdrop-filter: blur(5px);
+}
+
+/* --- 4. TOP CONTROLS (Brand & Actions) --- */
+#controls-hero {
+  position: fixed; top: 0; left: 0; right: 0; padding: 20px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+  z-index: 10; display: flex; flex-direction: column; align-items: center;
+}
+
+.brand-row { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 800px; }
+.brand-logo { height: 40px; }
+.action-row { display: flex; gap: 15px; align-items: center; }
+
+#snapshot-btn, #voice-btn {
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
+  padding: 0; border-radius: 50%; cursor: pointer; color: white; font-size: 20px; transition: all 0.2s;
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+}
+
+#snapshot-btn:active, #voice-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+.voice-off { color: #ff5555 !important; border-color: #ff5555 !important; background: rgba(255, 85, 85, 0.1) !important; }
+
+/* --- 5. BOTTOM CONTROLS (Carousel & Pills) --- */
+.controls-panel {
+  position: fixed; bottom: 20px; width: 100%; 
+  display: flex; flex-direction: column; align-items: center; z-index: 15;
+}
+
+#tryall-btn { margin-bottom: 12px; min-width: 120px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+
+.pill-group { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; padding: 0 10px; }
+
+.pill {
+  padding: 10px 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); 
+  background: rgba(0,0,0,0.6); color: white; font-size: 13px; font-weight: 600; 
+  cursor: pointer; backdrop-filter: blur(5px); transition: all 0.2s ease;
+}
+
+.pill:hover { background: rgba(255,255,255,0.2); border-color: var(--accent); }
+.pill.accent { background: var(--accent); color: #000; border: none; font-weight: 700; box-shadow: 0 0 10px var(--accent-glow); }
+
+.carousel-cards {
+  display: flex; gap: 10px; overflow-x: auto; padding: 10px; max-width: 100%;
+  scrollbar-width: none; /* Hide scrollbar Firefox */
+}
+.carousel-cards::-webkit-scrollbar { display: none; /* Hide scrollbar Chrome */ }
+
+.thumb-btn { 
+  height: 60px; width: 60px; object-fit: contain; background: rgba(0,0,0,0.6);
+  padding: 5px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); 
+  cursor: pointer; transition: transform 0.2s;
+}
+
+.thumb-btn:active { transform: scale(0.95); border-color: var(--accent); }
+
+/* --- 6. MODALS (Preview, Gallery, Lightbox) --- */
+#preview-modal, #gallery-modal, #lightbox-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000;
+    display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(8px);
+}
+
+.preview-container, .lightbox-main { width: 100%; display: flex; justify-content: center; align-items: center; overflow: hidden; padding: 20px; }
+#preview-image, #lightbox-image { max-width: 100%; max-height: 70vh; border: 2px solid var(--accent); border-radius: 12px; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+.preview-actions { margin-top: 20px; display: flex; gap: 15px; }
+
+/* Lightbox Arrows */
+.lightbox-nav {
+    position: absolute; top: 50%; transform: translateY(-50%); font-size: 50px; color: rgba(255,255,255,0.6); 
+    cursor: pointer; padding: 20px; user-select: none; z-index: 2002; transition: all 0.3s ease;
+}
+.lightbox-nav:hover { color: var(--accent); transform: translateY(-50%) scale(1.2); }
+.prev { left: 10px; } .next { right: 10px; }
+
+/* Gallery Layout */
+.gallery-content {
+    background: rgba(18, 18, 18, 0.95); width: 90%; max-width: 900px; height: 80vh; padding: 30px;
+    border-radius: 20px; border: 1px solid rgba(212, 175, 55, 0.3); box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+    display: flex; flex-direction: column; position: relative; overflow: hidden;
+}
+
+.gallery-content h2 {
+    margin-top: 0; margin-bottom: 20px; font-size: 26px; text-transform: uppercase; letter-spacing: 2px;
+    background: linear-gradient(to right, #d4af37, #fdf5e6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;
+}
+
+#gallery-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 15px; overflow-y: auto; padding: 10px; flex-grow: 1;
+}
+
+.gallery-card {
+    position: relative; aspect-ratio: 3/4; border-radius: 12px; overflow: hidden;
+    cursor: pointer; background: #000; border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease;
+}
+
+.gallery-card:hover { transform: translateY(-5px); border-color: var(--accent); }
+.gallery-img { width: 100%; height: 100%; object-fit: cover; }
+
+/* --- UPDATED GALLERY OVERLAY (FIXED FOR WRAPPING) --- */
+.gallery-overlay {
+    position: absolute; 
+    bottom: 0; 
+    left: 0; 
+    right: 0; 
+    /* Darker gradient for better text readability */
+    background: linear-gradient(to top, rgba(0,0,0,0.95) 10%, rgba(0,0,0,0.6) 50%, transparent);
+    padding: 15px 10px; 
+    
+    /* FIX: Column direction to stack text vertically */
+    display: flex; 
+    flex-direction: column; 
+    justify-content: flex-end; 
+    align-items: flex-start;
+    
+    opacity: 0; 
+    transform: translateY(10px); 
+    transition: all 0.3s ease;
+    
+    /* Ensure it doesn't cover more than half the image */
+    max-height: 50%;
+}
+
+.gallery-card:hover .gallery-overlay { 
+    opacity: 1; 
+    transform: translateY(0); 
+}
+
+/* Updated Text Style */
+.overlay-text { 
+    font-size: 13px; 
+    color: #fff; 
+    font-weight: 600; 
+    text-transform: capitalize; 
+    
+    /* FIX: Allow text to wrap */
+    white-space: normal; 
+    word-wrap: break-word; 
+    line-height: 1.4; 
+    
+    width: 100%;
+    margin-bottom: 5px;
+    text-align: left;
+}
+
+.overlay-icon {
+    align-self: flex-end; /* Icon stays bottom right */
+    font-size: 16px;
+    color: var(--accent);
+}
+
+/* Close Buttons */
+.close-preview, .close-gallery, .close-lightbox { position: absolute; top: 15px; right: 20px; font-size: 30px; color: #888; cursor: pointer; z-index: 2001; }
+.close-preview:hover, .close-gallery:hover, .close-lightbox:hover { color: var(--accent); }
+
+/* --- 7. PROCESSING SPINNER --- */
+#process-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 4000;
+    display: none; align-items: center; justify-content: center;
+}
+
+.spinner {
+    width: 50px; height: 50px; margin: 0 auto 15px auto;
+    border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--accent);
+    border-radius: 50%; animation: spin 1s linear infinite;
+}
+
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Toast Notification Style */
+#toast-notification {
+    visibility: hidden; min-width: 250px; background-color: #333; color: #d4af37;
+    text-align: center; border-radius: 4px; padding: 16px; position: fixed;
+    z-index: 9999; left: 50%; bottom: 30px; transform: translateX(-50%);
+    font-size: 17px; font-family: 'Montserrat', sans-serif; border: 1px solid #d4af37;
+}
+#toast-notification.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+@keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+@keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+/* Modal Overlay Base */
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 6000;
+    display: none; align-items: center; justify-content: center;
+}
+.modal-box {
+    background: #1a1a1a; padding: 30px; border-radius: 15px; 
+    border: 1px solid #d4af37; text-align: center; width: 350px; max-width: 85%;
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+}
