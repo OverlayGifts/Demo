@@ -1,4 +1,4 @@
-/* script.js - Jewels-Ai Atelier: v8.0 (Voice Muted Initially) */
+/* script.js - Jewels-Ai Atelier: v9.0 (Boosted Load Speed) */
 
 /* --- CONFIGURATION --- */
 const API_KEY = "AIzaSyAXG3iG2oQjUA_BpnO8dK8y-MHJ7HLrhyE"; 
@@ -44,7 +44,7 @@ let currentCameraMode = 'user';
 
 /* Voice & AI State */
 let recognition = null;
-let voiceEnabled = false; // CHANGED: Default is FALSE (Muted)
+let voiceEnabled = false; 
 let isRecognizing = false;
 let autoTryRunning = false;
 let autoSnapshots = [];
@@ -63,27 +63,32 @@ let handSmoother = {
 /* --- HELPER: LERP --- */
 function lerp(start, end, amt) { return (1 - amt) * start + amt * end; }
 
-/* --- 1. INITIALIZATION --- */
+/* --- 1. OPTIMIZED INITIALIZATION (NO RELOAD) --- */
 window.onload = async () => {
-    // REFRESH 2 TIMES ON STARTUP LOGIC
-    let bootCount = parseInt(sessionStorage.getItem('boot_refresh_count')) || 0;
-    
-    if (bootCount < 2) {
-        sessionStorage.setItem('boot_refresh_count', bootCount + 1);
-        console.log(`System Initialization: Refresh sequence ${bootCount + 1}/2`);
-        setTimeout(() => { window.location.reload(); }, 100); 
-        return; 
+    // STARTUP BOOST: Removed reload loop.
+    if(loadingStatus) {
+        loadingStatus.style.display = 'flex';
+        loadingStatus.innerText = "Starting Camera...";
     }
 
+    // Start background fetch immediately
     initBackgroundFetch();
     
-    // SETUP VIDEO ATTRIBUTES TO PREVENT BLACK SCREEN
+    // Setup Video
     videoElement.setAttribute('autoplay', '');
     videoElement.setAttribute('muted', '');
     videoElement.setAttribute('playsinline', '');
 
+    // Initialize Camera
     await startCameraFast('user');
-    setTimeout(() => { loadingStatus.style.display = 'none'; }, 2500);
+    
+    // Update status to show we are fetching
+    if(loadingStatus) loadingStatus.innerText = "Fetching Collection...";
+
+    // Initialize Face Mesh logic immediately so it's ready
+    detectLoop();
+
+    // Start loading earrings (this will hide the loader when first image is ready)
     await selectJewelryType('earrings');
 };
 
@@ -105,17 +110,22 @@ async function startCameraFast(mode = 'user') {
     try {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = stream;
-        videoElement.onloadedmetadata = () => {
-            videoElement.play().then(() => {
-                detectLoop();
-                // REMOVED: initVoiceControl() call here. Voice is now Manual Only.
-            }).catch(e => { console.error("Auto-play blocked", e); });
-        };
-    } catch (err) { console.error("Camera denied:", err); alert("Allow camera access."); }
+        // Wait for metadata to load
+        return new Promise((resolve) => {
+            videoElement.onloadedmetadata = () => {
+                videoElement.play().then(() => {
+                    resolve();
+                }).catch(e => { console.error("Auto-play blocked", e); resolve(); });
+            };
+        });
+    } catch (err) { 
+        console.error("Camera denied:", err); 
+        if(loadingStatus) loadingStatus.innerText = "Camera Denied. Check Settings.";
+    }
 }
 
 async function detectLoop() {
-    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height); // Clear canvas every frame
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height); 
     if (videoElement.readyState >= 2) {
         if (!isProcessingFace) { isProcessingFace = true; await faceMesh.send({image: videoElement}); isProcessingFace = false; }
         if (!isProcessingHand) { isProcessingHand = true; await hands.send({image: videoElement}); isProcessingHand = false; }
@@ -149,7 +159,7 @@ function fetchCategoryData(category) {
     return fetchPromise;
 }
 
-/* --- 4. ASSET LOADING --- */
+/* --- 4. ASSET LOADING (OPTIMIZED) --- */
 function loadAsset(src, id) {
     return new Promise((resolve) => {
         if (!src) { resolve(null); return; }
@@ -167,32 +177,67 @@ function setActiveARImage(img) {
     else if (currentType === 'bangles') bangleImg = img;
 }
 
-/* --- 5. SELECTION LOGIC --- */
+/* --- 5. SELECTION LOGIC (UPDATED WITH LOADER) --- */
 async function selectJewelryType(type) {
-  if (currentType === type) return;
+  if (currentType === type && document.getElementById('jewelry-options').children.length > 0) return;
+  
   currentType = type;
   const targetMode = (type === 'rings' || type === 'bangles') ? 'environment' : 'user';
   startCameraFast(targetMode); 
+  
   earringImg = null; necklaceImg = null; ringImg = null; bangleImg = null;
+  
   const container = document.getElementById('jewelry-options'); 
   container.innerHTML = ''; 
+  
   let assets = JEWELRY_ASSETS[type];
-  if (!assets) assets = await fetchCategoryData(type);
-  if (!assets || assets.length === 0) return;
+  
+  // Show Loader if data not ready
+  if (!assets) {
+      if(loadingStatus) {
+          loadingStatus.style.display = 'flex';
+          loadingStatus.innerText = "Downloading " + type + "...";
+      }
+      assets = await fetchCategoryData(type);
+  }
+
+  if (!assets || assets.length === 0) {
+       if(loadingStatus) {
+           loadingStatus.innerText = "No items found.";
+           setTimeout(() => { loadingStatus.style.display = 'none'; }, 2000);
+       }
+       return;
+  }
+
   container.style.display = 'flex';
   const fragment = document.createDocumentFragment();
+  
   assets.forEach((asset, i) => {
     const btnImg = new Image(); btnImg.src = asset.thumbSrc; btnImg.crossOrigin = 'anonymous'; btnImg.className = "thumb-btn"; btnImg.loading = "lazy"; 
     btnImg.onclick = () => { applyAssetInstantly(asset, i); };
     fragment.appendChild(btnImg);
   });
+  
   container.appendChild(fragment);
-  applyAssetInstantly(assets[0], 0);
+  // Apply first asset immediately
+  await applyAssetInstantly(assets[0], 0);
 }
 
 async function applyAssetInstantly(asset, index) {
     currentAssetIndex = index; currentAssetName = asset.name; highlightButtonByIndex(index);
-    const thumbImg = new Image(); thumbImg.src = asset.thumbSrc; thumbImg.crossOrigin = 'anonymous'; setActiveARImage(thumbImg);
+    
+    // Load Thumbnail First (Fast Feedback)
+    const thumbImg = new Image(); 
+    thumbImg.crossOrigin = 'anonymous';
+    
+    thumbImg.onload = () => {
+        setActiveARImage(thumbImg);
+        // HIDE LOADER HERE: As soon as we have a visible image
+        if(loadingStatus) loadingStatus.style.display = 'none';
+    };
+    thumbImg.src = asset.thumbSrc;
+
+    // Load High-Res in Background
     const highResImg = await loadAsset(asset.fullSrc, asset.id);
     if (currentAssetName === asset.name && highResImg) setActiveARImage(highResImg);
 }
@@ -299,194 +344,4 @@ hands.onResults((results) => {
       }
       if (bangleImg && bangleImg.complete) {
           const bHeight = (bangleImg.height / bangleImg.width) * handSmoother.bangle.size;
-          canvasCtx.save(); canvasCtx.translate(handSmoother.bangle.x, handSmoother.bangle.y); canvasCtx.rotate(handSmoother.bangle.angle); canvasCtx.drawImage(bangleImg, -handSmoother.bangle.size/2, -bHeight/2, handSmoother.bangle.size, bHeight); canvasCtx.restore();
-      }
-      canvasCtx.shadowColor = "transparent";
-  }
-  canvasCtx.restore();
-});
-
-/* --- 7. UTILS & VOICE CONTROL (UPDATED) --- */
-window.selectJewelryType = selectJewelryType; window.toggleTryAll = toggleTryAll; window.tryDailyItem = tryDailyItem; window.closeDailyDrop = closeDailyDrop;
-window.takeSnapshot = takeSnapshot; window.downloadAllAsZip = downloadAllAsZip; window.closePreview = closePreview;
-window.downloadSingleSnapshot = downloadSingleSnapshot; window.shareSingleSnapshot = shareSingleSnapshot;
-window.changeLightboxImage = changeLightboxImage; window.toggleVoiceControl = toggleVoiceControl;
-
-function initVoiceControl() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) { if(voiceBtn) voiceBtn.style.display = 'none'; return; }
-    recognition = new SpeechRecognition(); recognition.continuous = true; recognition.interimResults = false; recognition.lang = 'en-US';
-    
-    // UI Update on Start
-    recognition.onstart = () => { 
-        isRecognizing = true; 
-        if(voiceBtn) { 
-            voiceBtn.innerHTML = '🎙️'; // Active Icon
-            voiceBtn.classList.remove('voice-off');
-            voiceBtn.style.backgroundColor = "rgba(0, 255, 0, 0.2)"; 
-            voiceBtn.style.borderColor = "#00ff00"; 
-        } 
-    };
-    
-    recognition.onresult = (event) => { if (event.results[event.results.length - 1].isFinal) processVoiceCommand(event.results[event.results.length - 1][0].transcript.trim().toLowerCase()); };
-    
-    recognition.onend = () => { 
-        isRecognizing = false; 
-        if (voiceEnabled) { 
-            setTimeout(() => { try { recognition.start(); } catch(e) {} }, 500); 
-        } else if(voiceBtn) { 
-            // Reset to Mute state if stopped intentionally
-            voiceBtn.innerHTML = '🔇'; 
-            voiceBtn.classList.add('voice-off'); 
-            voiceBtn.style.backgroundColor = ""; 
-            voiceBtn.style.borderColor = ""; 
-        } 
-    };
-    try { recognition.start(); } catch(e) {}
-}
-
-function toggleVoiceControl() { 
-    if (!recognition) { 
-        // First Activation
-        voiceEnabled = true; 
-        initVoiceControl(); 
-        return; 
-    } 
-    
-    voiceEnabled = !voiceEnabled; 
-    
-    if (!voiceEnabled) { 
-        recognition.stop(); 
-        if(voiceBtn) { voiceBtn.innerHTML = '🔇'; voiceBtn.classList.add('voice-off'); } 
-    } else { 
-        try { recognition.start(); } catch(e) {} 
-        if(voiceBtn) { voiceBtn.innerHTML = '🎙️'; voiceBtn.classList.remove('voice-off'); } 
-    } 
-}
-
-function processVoiceCommand(cmd) { cmd = cmd.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,""); if (cmd.includes('next') || cmd.includes('change')) { navigateJewelry(1); triggerVisualFeedback("Next"); } else if (cmd.includes('back') || cmd.includes('previous')) { navigateJewelry(-1); triggerVisualFeedback("Previous"); } else if (cmd.includes('photo') || cmd.includes('capture')) takeSnapshot(); else if (cmd.includes('earring')) selectJewelryType('earrings'); else if (cmd.includes('chain') || cmd.includes('neck')) selectJewelryType('chains'); else if (cmd.includes('ring')) selectJewelryType('rings'); else if (cmd.includes('bangle')) selectJewelryType('bangles'); }
-function triggerVisualFeedback(text) { const feedback = document.createElement('div'); feedback.innerText = text; feedback.style.cssText = 'position:fixed; top:20%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.7); color:#fff; padding:10px 20px; border-radius:20px; z-index:1000; pointer-events:none;'; document.body.appendChild(feedback); setTimeout(() => { feedback.remove(); }, 1000); }
-function triggerFlash() { if(!flashOverlay) return; flashOverlay.classList.remove('flash-active'); void flashOverlay.offsetWidth; flashOverlay.classList.add('flash-active'); setTimeout(() => { flashOverlay.classList.remove('flash-active'); }, 300); }
-function toggleTryAll() { if (!currentType) { alert("Select category!"); return; } if (autoTryRunning) stopAutoTry(); else startAutoTry(); }
-function startAutoTry() { autoTryRunning = true; autoSnapshots = []; autoTryIndex = 0; document.getElementById('tryall-btn').textContent = "STOP"; runAutoStep(); }
-function stopAutoTry() { autoTryRunning = false; clearTimeout(autoTryTimeout); document.getElementById('tryall-btn').textContent = "Try All"; if (autoSnapshots.length > 0) showGallery(); }
-async function runAutoStep() { if (!autoTryRunning) return; const assets = JEWELRY_ASSETS[currentType]; if (!assets || autoTryIndex >= assets.length) { stopAutoTry(); return; } const asset = assets[autoTryIndex]; const highResImg = await loadAsset(asset.fullSrc, asset.id); setActiveARImage(highResImg); currentAssetName = asset.name; autoTryTimeout = setTimeout(() => { triggerFlash(); captureToGallery(); autoTryIndex++; runAutoStep(); }, 1500); }
-
-/* --- HELPER: WRAP TEXT ON CANVAS --- */
-function getWrappedLines(ctx, text, maxWidth) {
-    var words = text.split(" ");
-    var lines = [];
-    var currentLine = words[0];
-    for (var i = 1; i < words.length; i++) {
-        var word = words[i];
-        var width = ctx.measureText(currentLine + " " + word).width;
-        if (width < maxWidth) { currentLine += " " + word; } 
-        else { lines.push(currentLine); currentLine = word; }
-    }
-    lines.push(currentLine);
-    return lines;
-}
-
-function captureToGallery() { 
-    const tempCanvas = document.createElement('canvas'); 
-    tempCanvas.width = videoElement.videoWidth; 
-    tempCanvas.height = videoElement.videoHeight; 
-    const tempCtx = tempCanvas.getContext('2d'); 
-    
-    // Draw Video & AR
-    if (currentCameraMode === 'environment') { tempCtx.translate(0, 0); tempCtx.scale(1, 1); } 
-    else { tempCtx.translate(tempCanvas.width, 0); tempCtx.scale(-1, 1); } 
-    tempCtx.drawImage(videoElement, 0, 0); 
-    tempCtx.setTransform(1, 0, 0, 1, 0, 0); 
-    try { tempCtx.drawImage(canvasElement, 0, 0); } catch(e) {} 
-
-    // --- TEXT WRAPPING LOGIC ---
-    let cleanName = currentAssetName.replace(/\.(png|jpg|jpeg|webp)$/i, "").replace(/_/g, " "); 
-    cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1); 
-    
-    const padding = tempCanvas.width * 0.04; 
-    const titleSize = tempCanvas.width * 0.045; 
-    const descSize = tempCanvas.width * 0.035; 
-    const lineHeight = descSize * 1.3;
-
-    // Measure Text Lines
-    tempCtx.font = `${descSize}px Montserrat, sans-serif`;
-    const maxWidth = tempCanvas.width - (padding * 2);
-    const filenameLines = getWrappedLines(tempCtx, cleanName, maxWidth);
-    
-    // Calculate Height Dynamic
-    const titleHeight = titleSize * 1.5; 
-    const textBlockHeight = filenameLines.length * lineHeight;
-    const contentHeight = titleHeight + textBlockHeight + padding;
-
-    // Draw Background Gradient
-    const gradient = tempCtx.createLinearGradient(0, tempCanvas.height - contentHeight - padding, 0, tempCanvas.height); 
-    gradient.addColorStop(0, "rgba(0,0,0,0)"); gradient.addColorStop(0.2, "rgba(0,0,0,0.8)"); gradient.addColorStop(1, "rgba(0,0,0,0.95)"); 
-    tempCtx.fillStyle = gradient; 
-    tempCtx.fillRect(0, tempCanvas.height - contentHeight - padding, tempCanvas.width, contentHeight + padding); 
-    
-    // Draw Title
-    tempCtx.font = `bold ${titleSize}px Playfair Display, serif`; 
-    tempCtx.fillStyle = "#d4af37"; 
-    tempCtx.textAlign = "left"; 
-    tempCtx.textBaseline = "top"; 
-    tempCtx.fillText("Product Description", padding, tempCanvas.height - contentHeight); 
-    
-    // Draw Filename Lines
-    tempCtx.font = `${descSize}px Montserrat, sans-serif`; 
-    tempCtx.fillStyle = "#ffffff"; 
-    filenameLines.forEach((line, index) => {
-        tempCtx.fillText(line, padding, tempCanvas.height - contentHeight + titleHeight + (index * lineHeight));
-    });
-
-    // Draw Watermark
-    if (watermarkImg.complete) { 
-        const wWidth = tempCanvas.width * 0.25; 
-        const wHeight = (watermarkImg.height / watermarkImg.width) * wWidth; 
-        tempCtx.drawImage(watermarkImg, tempCanvas.width - wWidth - padding, padding, wWidth, wHeight); 
-    } 
-    
-    const dataUrl = tempCanvas.toDataURL('image/png'); 
-    const safeName = "Jewels_Look"; 
-    autoSnapshots.push({ url: dataUrl, name: `${safeName}_${Date.now()}.png` }); 
-    return { url: dataUrl, name: `${safeName}_${Date.now()}.png` }; 
-}
-
-function checkDailyDrop() {
-    const today = new Date().toDateString();
-    const lastSeen = localStorage.getItem('jewels_daily_date');
-    if (lastSeen !== today && JEWELRY_ASSETS['earrings'] && JEWELRY_ASSETS['earrings'].length > 0) {
-        const list = JEWELRY_ASSETS['earrings'];
-        const randomIdx = Math.floor(Math.random() * list.length);
-        dailyItem = { item: list[randomIdx], index: randomIdx, type: 'earrings' };
-        document.getElementById('daily-img').src = dailyItem.item.thumbSrc;
-        let cleanName = dailyItem.item.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
-        document.getElementById('daily-name').innerText = cleanName;
-        document.getElementById('daily-drop-modal').style.display = 'flex';
-        localStorage.setItem('jewels_daily_date', today);
-    }
-}
-function closeDailyDrop() { document.getElementById('daily-drop-modal').style.display = 'none'; }
-function tryDailyItem() { closeDailyDrop(); if (dailyItem) { selectJewelryType(dailyItem.type).then(() => { applyAssetInstantly(dailyItem.item, dailyItem.index); }); } }
-
-function showGallery() { 
-    const grid = document.getElementById('gallery-grid'); grid.innerHTML = ''; 
-    autoSnapshots.forEach((item, index) => { 
-        const card = document.createElement('div'); card.className = "gallery-card"; 
-        const img = document.createElement('img'); img.src = item.url; img.className = "gallery-img"; 
-        const overlay = document.createElement('div'); overlay.className = "gallery-overlay"; 
-        let cleanName = item.name.replace("Jewels-Ai_", "").replace(/\.(png|jpg|jpeg|webp)$/i, "").replace(/_/g, " "); 
-        overlay.innerHTML = `<span class="overlay-text">${cleanName}</span><div class="overlay-icon">👁️</div>`; 
-        card.onclick = () => { currentLightboxIndex = index; document.getElementById('lightbox-image').src = item.url; document.getElementById('lightbox-overlay').style.display = 'flex'; }; 
-        card.appendChild(img); card.appendChild(overlay); grid.appendChild(card); 
-    }); 
-    document.getElementById('gallery-modal').style.display = 'flex'; 
-}
-function takeSnapshot() { triggerFlash(); const shotData = captureToGallery(); currentPreviewData = shotData; document.getElementById('preview-image').src = shotData.url; document.getElementById('preview-modal').style.display = 'flex'; }
-function downloadSingleSnapshot() { if(!currentPreviewData.url) return; saveAs(currentPreviewData.url, currentPreviewData.name); }
-function downloadAllAsZip() { if (autoSnapshots.length === 0) return; const zip = new JSZip(); const folder = zip.folder("Jewels-Ai_Collection"); autoSnapshots.forEach(item => folder.file(item.name, item.url.replace(/^data:image\/(png|jpg);base64,/, ""), {base64:true})); zip.generateAsync({type:"blob"}).then(content => saveAs(content, "Jewels-Ai_Collection.zip")); }
-function shareSingleSnapshot() { if(!currentPreviewData.url) return; fetch(currentPreviewData.url).then(res => res.blob()).then(blob => { const file = new File([blob], "look.png", { type: "image/png" }); if (navigator.share) navigator.share({ files: [file] }); }); }
-function changeLightboxImage(dir) { if (autoSnapshots.length === 0) return; currentLightboxIndex = (currentLightboxIndex + dir + autoSnapshots.length) % autoSnapshots.length; document.getElementById('lightbox-image').src = autoSnapshots[currentLightboxIndex].url; }
-function closePreview() { document.getElementById('preview-modal').style.display = 'none'; }
-function closeGallery() { document.getElementById('gallery-modal').style.display = 'none'; }
-function closeLightbox() { document.getElementById('lightbox-overlay').style.display = 'none'; }
+          canvasCtx.save(); canvasCtx.translate(handSmoother.bangle.x,
